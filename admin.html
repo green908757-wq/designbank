@@ -71,6 +71,8 @@ button,input,textarea,select{font:inherit;color:inherit}
 .side-foot button{background:none;border:1px solid #4a4848;color:#d6d3d3;padding:6px 10px;border-radius:3px;cursor:pointer;font-size:12.5px}
 .side-foot button:hover{border-color:#fff;color:#fff}
 .btn.view{text-decoration:none;color:inherit}
+.group.dl{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;border-left-color:var(--dark)}
+.group.dl .dl-text{flex:1;min-width:240px}
 .dlg{border:0;padding:0;max-width:min(460px,calc(100vw - 32px));width:100%;border-left:6px solid var(--orange);box-shadow:0 20px 60px rgba(0,0,0,.35)}
 .dlg::backdrop{background:rgba(33,32,32,.55)}
 .dlg form{display:flex;flex-direction:column;gap:14px;padding:24px 26px}
@@ -275,6 +277,7 @@ textarea.list{font-size:14px;line-height:1.75}
     <span class="acts row">
       <a class="btn sm ghost view" id="viewSite" target="_blank" rel="noopener" hidden>사이트 보기</a>
       <button class="btn sm ghost" id="discard" type="button" disabled>되돌리기</button>
+      <button class="btn sm" id="dlAll" type="button" title="고친 내용이 담긴 HTML 전체를 ZIP 파일로 내려받습니다">전체 내려받기</button>
       <button class="btn primary" id="save" type="button" disabled>저장</button>
     </span>
   </header>
@@ -392,7 +395,7 @@ const SECTIONS = [
     {t:'기타 이미지', hint:'번호 순서대로 사이트에 나옵니다. 끌어서 순서를 바꿀 수 있습니다.', f:[T('galleries.other','이미지',{type:'gallery',g:'other'})]},
     titleGroup('other')
   ]},
-  {id:'notice', label:'공지사항', file:'notice.html + notice-view.html', groups:[
+  {id:'notice', label:'공지사항', file:'notice.html', download:'notice.html', groups:[
     {t:'공지 글', hint:'목록 맨 위 글이 가장 먼저 보입니다.', f:[T('posts','공지',{type:'posts'})]},
     {t:'목록 페이지', f:[T('notice.title','위쪽 문구'),T('notice.placeholder','검색칸 안내 글씨')]},
     {t:'목록 머리글', cols:2, f:[T('notice.th1','제목 칸'),T('notice.th2','날짜 칸')]},
@@ -566,13 +569,28 @@ function extract(){
       try{
         m.galleries = Function('"use strict";return ('+js.slice(gi,pi).replace(/^const GALLERIES\s*=/,'').trim().replace(/;$/,'')+')')();
         const posts = Function('"use strict";return ('+js.slice(pi,ci).replace(/^const POSTS\s*=/,'').trim().replace(/;$/,'')+')')();
-        m.posts = posts.map(p=>({id:p.id, title:unesc(p.title||''), date:p.date||'', body:unesc(String(p.body||'').replace(/<br\s*\/?>\n?/gi,'\n'))}));
+        m.posts = normPosts(posts);
       }catch(e){ console.warn(e); m.galleries={}; m.posts=undefined; }
     }
     const tm = js.match(TABS_RE);
     if (tm){ m.common.tabs = {namecard:tm[1], promo:tm[2], other:tm[3]}; }
   }
+
+  // 공지 글: notice.html 안의 <script id="notice-data">에 있으면 그것을 씁니다
+  S.postsIn = 'js';
+  const nd = q('notice','#notice-data');
+  if (nd){
+    try{
+      m.posts = normPosts(Function('"use strict";const window={};'+nd.textContent+';return window.NOTICE_POSTS;')() || []);
+      S.postsIn = 'notice';
+      const nt = q('notice','.notice-title');
+      if (nt && nt.hasAttribute('data-view-title')) m.noticeView.title = nt.getAttribute('data-view-title');
+    }catch(e){ console.warn(e); }
+  }
   return m;
+}
+function normPosts(posts){
+  return posts.map(p=>({id:p.id, title:unesc(p.title||''), date:p.date||'', body:unesc(String(p.body||'').replace(/<br\s*\/?>\n?/gi,'\n'))}));
 }
 
 /* =========================================================
@@ -638,6 +656,10 @@ function applyDoc(id, d, m){
     const qi=q('#q'); if (qi && m.notice.placeholder!=null) qi.setAttribute('placeholder', m.notice.placeholder);
     const ths=d.querySelectorAll('.board thead th');
     setText(ths[0], m.notice.th1); setText(ths[1], m.notice.th2);
+    const nd=q('#notice-data');
+    if (nd && m.posts) nd.textContent = genNoticeData(m.posts);
+    const nt=q('.notice-title');
+    if (nt && nt.hasAttribute('data-view-title') && m.noticeView.title!=null) nt.setAttribute('data-view-title', m.noticeView.title);
   }
   if (id==='noticeView') setText(q('.notice-title'), m.noticeView.title);
   return d;
@@ -662,15 +684,19 @@ function genGalleries(g, b, src){
     return `  ${k}: [\n${rows.join(',\n')}\n  ]`;
   }).join(',\n') + '\n};\n';
 }
+const postRow = x => `  {id:${Number(x.id)},title:${J(esc(x.title))},date:${J(x.date)},body:${J(esc(x.body).replace(/\r?\n/g,'<br>'))}}`;
 function genPosts(p){
-  return 'const POSTS = [\n' + p.map(x=>`  {id:${Number(x.id)},title:${J(esc(x.title))},date:${J(x.date)},body:${J(esc(x.body).replace(/\r?\n/g,'<br>'))}}`).join(',\n') + '\n];\n\n\n';
+  return 'const POSTS = [\n' + p.map(postRow).join(',\n') + '\n];\n\n\n';
+}
+function genNoticeData(p){
+  return '\n/* 공지사항 글 목록: admin.html(편집기)에서 고치면 이 부분이 바뀝니다 */\nwindow.NOTICE_POSTS = [\n' + p.map(postRow).join(',\n') + '\n];\n';
 }
 function applyJS(t, m, b){
   let r = t;
   const gi=t.indexOf('const GALLERIES'), pi=t.indexOf('const POSTS'), ci=t.indexOf('/* 공통: 메뉴 */');
   if (gi>-1 && pi>gi && ci>pi && m.posts){
     const g = J(m.galleries)!==J(b.galleries) ? genGalleries(m.galleries, b.galleries, t.slice(gi,pi)) : t.slice(gi,pi);
-    const p = J(m.posts)!==J(b.posts) ? genPosts(m.posts) : t.slice(pi,ci);
+    const p = (S.postsIn!=='notice' && J(m.posts)!==J(b.posts)) ? genPosts(m.posts) : t.slice(pi,ci);
     r = t.slice(0,gi) + g + p + t.slice(ci);
   }
   const tb = m.common.tabs;
@@ -1059,6 +1085,13 @@ function go(id){
 function renderMain(){
   const s=SECTIONS.find(x=>x.id===cur), box=$('mainIn'); box.innerHTML='';
   box.append(h('header',{class:'sec-head'}, h('h1',{},s.label, s.file?h('span',{class:'file'},s.file):null), s.intro?h('p',{class:'intro'},s.intro):null));
+  if (s.download && S.texts[s.download]!=null){
+    box.append(h('section',{class:'group dl'},
+      h('div',{class:'dl-text'},
+        h('h2',{},`${s.download} 내려받기`),
+        h('p',{class:'ghint'},`고친 내용이 담긴 ${s.download} 파일을 내려받습니다. GitHub 저장소에서 [Add file] → [Upload files]로 올리면 1~2분 뒤 사이트에 반영됩니다.`)),
+      h('button',{type:'button',class:'btn accent',onclick:()=>downloadPage(s.download)},'HTML 내려받기')));
+  }
   s.groups.forEach(g=>{
     const body=h('div',{class:'gbody'+(g.cols?' cols'+g.cols:'')});
     g.f.forEach(f=>body.append(field(f)));
@@ -1066,6 +1099,39 @@ function renderMain(){
   });
   markFields();
 }
+function downloadPage(file){
+  if (file==='notice.html' && S.postsIn!=='notice'){
+    toast('지금 사이트의 notice.html에는 공지 글이 들어 있지 않습니다. 새 notice.html과 js/common.js를 먼저 한 번 올려 주세요.', true);
+    return;
+  }
+  const id = Object.keys(PAGE).find(k=>PAGE[k]===file), t = S.texts[file];
+  const a = ser(applyDoc(id, parse(t), M)), b = ser(applyDoc(id, parse(t), B));
+  download(file, new Blob([a===b ? t : patch(t, b, a)], {type:'text/html;charset=utf-8'}));
+  toast(`${file}을 내려받았습니다. GitHub 저장소에 같은 이름으로 올리면 사이트에 반영됩니다.`);
+}
+/* 고친 내용이 담긴 사이트 HTML 전체(+ js/common.js, 새 이미지)를 ZIP으로 */
+async function downloadAll(){
+  let changed;
+  try{ changed = outputs(); }catch(e){ toast('파일을 만드는 중 문제가 생겼습니다: '+e.message, true); return; }
+  const files = [];
+  for (const f of [...Object.values(PAGE), JS]) if (S.texts[f]!=null) files.push([f, changed[f]!=null ? changed[f] : S.texts[f]]);
+  const assets = [...S.assets];
+  const d = new Date(), pad = n=>String(n).padStart(2,'0');
+  const name = `${(S.mode==='web'?location.hostname:S.name)||'site'}-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.zip`;
+  if (window.JSZip){
+    const z = new JSZip();
+    files.forEach(([f,t])=>z.file(f, t));
+    assets.forEach(([f,file])=>z.file(f, file));
+    download(name, await z.generateAsync({type:'blob'}));
+    toast(`HTML ${files.length-1}개와 js/common.js${assets.length?', 새 이미지 '+assets.length+'개':''}를 ZIP으로 내려받았습니다. 압축을 푼 뒤 GitHub의 [Add file] → [Upload files]에 폴더째 끌어다 놓으세요.`);
+  } else {
+    for (const [f,t] of files) download(f.split('/').pop(), new Blob([t], {type: f.endsWith('.js') ? 'text/javascript;charset=utf-8' : 'text/html;charset=utf-8'}));
+    for (const [f,file] of assets) download(f.split('/').pop(), file);
+    toast('파일을 하나씩 내려받았습니다. common.js는 js 폴더에, 새 이미지는 images 안 해당 폴더에 올려 주세요.');
+  }
+}
+$('dlAll').addEventListener('click', downloadAll);
+
 function markFields(){
   document.querySelectorAll('[data-k]').forEach(el=>el.classList.toggle('changed', keyDirty(el.dataset.k)));
 }
