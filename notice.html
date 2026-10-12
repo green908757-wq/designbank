@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>공지사항 | DESIGNBANK 디자인뱅크</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;800&family=Noto+Sans+KR:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;800&amp;family=Noto+Sans+KR:wght@300;400;500;700;800&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css?v=202610121200">
 <style>
   /* 모바일에서도 검색칸을 한 줄로 (제목 선택 + 검색어 입력) */
@@ -20,13 +20,13 @@
 <body data-page="notice" data-group="notice">
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="tri" viewBox="0 0 24 47.5" preserveAspectRatio="none"><polygon points="12,0 24,47.5 0,47.5" fill="#fd0606"/></symbol>
+  <symbol id="tri" viewBox="0 0 24 47.5" preserveAspectRatio="none"><polygon points="12,0 24,47.5 0,47.5" fill="#fd0606"></polygon></symbol>
 </svg>
 
 <header class="header" id="header">
   <div class="header-inner">
     <a href="index.html" class="logo" aria-label="DESIGNBANK 홈">
-      <b>DESIGN</b><span>B<span class="a">A<svg class="tri" aria-hidden="true"><use href="#tri"/></svg></span>NK</span>
+      <b>DESIGN</b><span>B<span class="a">A<svg class="tri" aria-hidden="true"><use href="#tri"></use></svg></span>NK</span>
     </a>
     <button class="menu-btn" aria-label="메뉴 열기" aria-expanded="false" aria-controls="nav"><span></span><span></span><span></span></button>
     <nav class="nav" id="nav">
@@ -68,11 +68,39 @@
 <script id="notice-data">
 /* 공지사항 글 목록: admin.html(편집기)에서 고치면 이 부분이 바뀝니다 */
 window.NOTICE_POSTS = [
-  {id:3,title:"테스트2",date:"2026.10.12",body:"..."},
-  {id:2,title:"t",date:"2026.10.12",body:"t"},
   {id:1,title:"제19회 한반도미술대전 초대작가 출품원서",date:"2026.06.10",body:"공지 내용을 이곳에 입력하세요."}
 ];
 </script>
 <script src="js/common.js?v=202610121200"></script>
+<script id="notice-render">
+/* 공지사항 목록과 글 보기: 위 NOTICE_POSTS로 이 페이지가 직접 그립니다 (js/common.js 버전과 상관없이 동작) */
+(function(){
+  var P = window.NOTICE_POSTS || [];
+  var body = document.getElementById("board-body"), post = document.getElementById("post"), q = document.getElementById("q");
+  if (!body) return;
+  if (q) { var nq = q.cloneNode(true); q.parentNode.replaceChild(nq, q); q = nq; }
+  var id = Number(new URLSearchParams(location.search).get("id"));
+  var back = '<a class="back" href="notice.html">목록으로</a>';
+  function list(s) {
+    var l = P.filter(function (p) { return p.title.indexOf(s) > -1; });
+    body.innerHTML = l.length ? l.map(function (p) {
+      return '<tr><td><a href="notice.html?id=' + p.id + '">' + p.title + '</a></td><td class="date">' + p.date + '</td></tr>';
+    }).join("") : '<tr class="empty"><td colspan="2">검색 결과가 없습니다. 다른 검색어를 입력해 보세요.</td></tr>';
+  }
+  if (id && post) {
+    document.querySelectorAll(".search,.board,.pager").forEach(function (e) { e.style.display = "none"; });
+    var t = document.querySelector(".notice-title");
+    if (t && t.getAttribute("data-view-title")) t.textContent = t.getAttribute("data-view-title");
+    var p = P.filter(function (x) { return x.id === id; })[0];
+    post.innerHTML = p ? '<h3>' + p.title + '</h3><time>' + p.date + '</time><hr><div class="body">' + p.body + '</div>' + back
+                       : '<p>글을 찾을 수 없습니다. 목록에서 다시 선택해 주세요.</p>' + back;
+    post.style.display = "";
+  } else {
+    if (post) post.style.display = "none";
+    list("");
+    if (q) q.addEventListener("input", function (e) { list(e.target.value.trim()); });
+  }
+})();
+</script>
 </body>
 </html>
