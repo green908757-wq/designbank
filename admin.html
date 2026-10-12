@@ -586,6 +586,9 @@ function extract(){
       const nt = q('notice','.notice-title');
       if (nt && nt.hasAttribute('data-view-title')) m.noticeView.title = nt.getAttribute('data-view-title');
     }catch(e){ console.warn(e); }
+  } else if (D.notice && m.posts){
+    // 옛 구조(공지가 js/common.js 안에 있음): 저장할 때 notice.html 안으로 옮겨 담습니다
+    S.postsIn = 'notice';
   }
   return m;
 }
@@ -656,13 +659,66 @@ function applyDoc(id, d, m){
     const qi=q('#q'); if (qi && m.notice.placeholder!=null) qi.setAttribute('placeholder', m.notice.placeholder);
     const ths=d.querySelectorAll('.board thead th');
     setText(ths[0], m.notice.th1); setText(ths[1], m.notice.th2);
-    const nd=q('#notice-data');
-    if (nd && m.posts) nd.textContent = genNoticeData(m.posts);
+    if (m.posts) ensureNotice(d, m);
     const nt=q('.notice-title');
-    if (nt && nt.hasAttribute('data-view-title') && m.noticeView.title!=null) nt.setAttribute('data-view-title', m.noticeView.title);
+    if (nt && m.noticeView.title!=null) nt.setAttribute('data-view-title', m.noticeView.title);
   }
   if (id==='noticeView') setText(q('.notice-title'), m.noticeView.title);
   return d;
+}
+
+/* notice.html이 js/common.js 버전과 상관없이 직접 공지를 그리도록 필요한 부분을 넣고 최신으로 맞춤 */
+const NOTICE_RENDER = `
+/* 공지사항 목록과 글 보기: 위 NOTICE_POSTS로 이 페이지가 직접 그립니다 (js/common.js 버전과 상관없이 동작) */
+(function(){
+  var P = window.NOTICE_POSTS || [];
+  var body = document.getElementById("board-body"), post = document.getElementById("post"), q = document.getElementById("q");
+  if (!body) return;
+  if (q) { var nq = q.cloneNode(true); q.parentNode.replaceChild(nq, q); q = nq; }
+  var id = Number(new URLSearchParams(location.search).get("id"));
+  var back = '<a class="back" href="notice.html">목록으로</a>';
+  function list(s) {
+    var l = P.filter(function (p) { return p.title.indexOf(s) > -1; });
+    body.innerHTML = l.length ? l.map(function (p) {
+      return '<tr><td><a href="notice.html?id=' + p.id + '">' + p.title + '</a></td><td class="date">' + p.date + '</td></tr>';
+    }).join("") : '<tr class="empty"><td colspan="2">검색 결과가 없습니다. 다른 검색어를 입력해 보세요.</td></tr>';
+  }
+  if (id && post) {
+    document.querySelectorAll(".search,.board,.pager").forEach(function (e) { e.style.display = "none"; });
+    var t = document.querySelector(".notice-title");
+    if (t && t.getAttribute("data-view-title")) t.textContent = t.getAttribute("data-view-title");
+    var p = P.filter(function (x) { return x.id === id; })[0];
+    post.innerHTML = p ? '<h3>' + p.title + '</h3><time>' + p.date + '</time><hr><div class="body">' + p.body + '</div>' + back
+                       : '<p>글을 찾을 수 없습니다. 목록에서 다시 선택해 주세요.</p>' + back;
+    post.style.display = "";
+  } else {
+    if (post) post.style.display = "none";
+    list("");
+    if (q) q.addEventListener("input", function (e) { list(e.target.value.trim()); });
+  }
+})();
+`;
+function ensureNotice(d, m){
+  const body = d.body;
+  const scr = [...d.querySelectorAll('script[src]')].find(x=>/(^|\/)js\/common\.js/.test(x.getAttribute('src')||''));
+  const put = (el, after) => {
+    const ref = after ? after.nextSibling : (scr || null);
+    const parent = after ? after.parentNode : (scr ? scr.parentNode : body);
+    parent.insertBefore(d.createTextNode('\n'), ref);
+    parent.insertBefore(el, ref);
+  };
+  let nd = d.getElementById('notice-data');
+  if (!nd){ nd = d.createElement('script'); nd.id='notice-data'; put(nd, null); }
+  nd.textContent = genNoticeData(m.posts);
+  let nr = d.getElementById('notice-render');
+  if (!nr){ nr = d.createElement('script'); nr.id='notice-render'; put(nr, scr || nd); }
+  if (nr.textContent !== NOTICE_RENDER) nr.textContent = NOTICE_RENDER;
+  if (!d.getElementById('post')){
+    const sec = d.querySelector('.pager') || d.querySelector('.board');
+    const art = d.createElement('article'); art.className='detail'; art.id='post'; art.setAttribute('style','display:none');
+    if (sec){ sec.parentNode.insertBefore(d.createTextNode('\n    '), sec.nextSibling); sec.parentNode.insertBefore(art, sec.nextSibling.nextSibling); }
+    else body.append(art);
+  }
 }
 
 function gallerySlices(src){
@@ -721,6 +777,22 @@ function patch(orig, base, next){
   return out.join('\n');
 }
 
+function noticeViewRedirect(title){
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(title || '공지사항 상세 | DESIGNBANK 디자인뱅크')}</title>
+<!-- 공지 글 보기는 notice.html?id=번호 에서 보여 줍니다. 예전 주소로 들어오면 자동으로 이동합니다. -->
+<script>location.replace('notice.html' + location.search);<\/script>
+<noscript><meta http-equiv="refresh" content="0; url=notice.html"></noscript>
+</head>
+<body><p><a href="notice.html">공지사항으로 이동</a></p></body>
+</html>
+`;
+}
+
 /* 캐시 방지: js/common.js, css/style.css 주소 뒤에 ?v=날짜시간 을 붙여
    파일이 바뀌면 방문자 브라우저가 옛 파일 대신 새 파일을 받도록 합니다 */
 const ASSET_RE = /((?:src|href)=")(js\/common\.js|css\/style\.css)(\?v=[^"]*)?"/g;
@@ -737,6 +809,10 @@ function outputs(){
     if (a!==b) out[f]=patch(t, b, a);
   }
   if (S.texts[JS]!=null){ const a=applyJS(S.texts[JS], M, B); if (a!==S.texts[JS]) out[JS]=a; }
+  // 예전 글 보기 페이지(notice-view.html)는 옛 공지를 보여 주므로, 공지를 고치면 notice.html로 이동하는 페이지로 바꿈
+  const NV = PAGE.noticeView;
+  if (S.postsIn==='notice' && S.texts[NV]!=null && J(M.posts)!==J(B.posts) && !/location\.replace\(\s*['"]notice\.html/.test(S.texts[NV]))
+    out[NV] = noticeViewRedirect(M.titles.noticeView);
   // common.js가 바뀌면 모든 페이지의 버전 번호도 새로 바꿈
   if (out[JS]!=null){
     const v = verNow();
@@ -779,7 +855,8 @@ const encPath = p => p.split('/').map(encodeURIComponent).join('/');
 const WEB = new Map();
 const siteURL = p => new URL(encPath(p), location.href).href;
 function webRead(path){
-  if (!WEB.has(path)) WEB.set(path, fetch(siteURL(path), {cache:'no-store'})
+  const fresh = /\.(html|js|css)$/i.test(path) ? '?t=' + Date.now() : '';
+  if (!WEB.has(path)) WEB.set(path, fetch(siteURL(path) + fresh, {cache:'no-store'})
     .then(r=>r.ok ? r.blob().then(b=>new File([b], path.split('/').pop())) : null).catch(()=>null));
   return WEB.get(path);
 }
@@ -1362,7 +1439,12 @@ async function save(){
         .concat(assets.map(([path,data])=>({path,data,isNew:true})));
       const names = changes.map(c=>c.path.split('/').pop());
       await ghCommit(changes, '관리자 편집: ' + (names.length>4 ? names.slice(0,4).join(', ')+` 외 ${names.length-4}개` : names.join(', ')));
-      toast(`사이트에 저장했습니다. 1~2분 뒤 반영되며, 사이트에서 새로고침하면 보입니다.`);
+      const firstPage = Object.keys(out).find(f=>f.endsWith('.html')) || 'index.html';
+      const base = (S.mode==='gh' && GH.site) ? GH.site : (location.protocol.startsWith('http') ? location.origin+'/' : '');
+      if (base){ $('viewSite').href = base + firstPage + '?v=' + Date.now(); $('viewSite').hidden=false; }
+      toast(`사이트에 저장했습니다. 사이트에 반영되는지 자동으로 확인하고 있습니다(보통 1~2분).`);
+      const check = out[firstPage]!=null ? firstPage : Object.keys(out)[0];
+      if (check) verifyLive(check, out[check], base);
     } else if (S.mode==='fs'){
       let perm = await S.root.queryPermission({mode:'readwrite'});
       if (perm!=='granted') perm = await S.root.requestPermission({mode:'readwrite'});
@@ -1394,6 +1476,32 @@ async function save(){
     $('save').textContent=label; updateDirty();
   }
 }
+/* 저장한 파일이 실제 사이트에서 보이는지 주기적으로 확인 */
+let liveRun = 0;
+async function verifyLive(file, text, base){
+  if (!base) return;
+  const run = ++liveRun, st = $('status');
+  const norm = t => String(t).replace(/\r\n/g,'\n').trim();
+  const until = Date.now() + 5*60*1000;
+  while (Date.now() < until){
+    await new Promise(r=>setTimeout(r, 8000));
+    if (run !== liveRun) return;
+    if (!st.classList.contains('on')) st.textContent = '사이트 반영 확인 중…';
+    try{
+      const r = await fetch(new URL(encPath(file), base).href + '?t=' + Date.now(), {cache:'no-store'});
+      if (r.ok && norm(await r.text()) === norm(text)){
+        if (run !== liveRun) return;
+        updateDirty();
+        toast(`사이트에 반영됐습니다. 위쪽 [사이트 보기]를 누르면 바뀐 화면을 볼 수 있습니다. 다른 컴퓨터나 휴대폰에서는 최대 10분 뒤에 보일 수 있습니다.`);
+        return;
+      }
+    }catch(e){}
+  }
+  if (run !== liveRun) return;
+  updateDirty();
+  toast(`GitHub에는 저장됐지만 5분이 지나도 사이트에 반영되지 않았습니다. GitHub 저장소의 Actions 탭에서 배포가 실패하지 않았는지, Settings → Pages의 배포 브랜치가 '${GH.branch||'main'}'인지 확인해 주세요.`, true);
+}
+
 $('save').addEventListener('click', save);
 $('discard').addEventListener('click', ()=>{
   if (!confirm('마지막으로 저장한 뒤 고친 내용을 모두 되돌릴까요?')) return;
