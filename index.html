@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DESIGNBANK 디자인뱅크</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;800&family=Noto+Sans+KR:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  /* index1.html 슬라이드 효과: 글씨 전체가 오른쪽 검정 판 뒤에서 왼쪽으로 2초간 나옴 */
+  .hero-left { position: relative; overflow: hidden; }
+  .hero-right { position: relative; z-index: 2; }
+  .hero-slide { animation: heroSlideLeft 2s cubic-bezier(.22,.8,.3,1) both; }
+  @keyframes heroSlideLeft {
+    from { transform: translateX(var(--slide, calc(100% + 10rem))); }
+    to   { transform: translateX(0); }
+  }
+  @media (prefers-reduced-motion: reduce) { .hero-slide { animation: none; } }
+</style>
+</head>
+<body data-page="home" data-group="home">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="tri" viewBox="0 0 24 47.5" preserveAspectRatio="none"><polygon points="12,0 24,47.5 0,47.5" fill="#fd0606"/></symbol>
+</svg>
+
+<header class="header" id="header">
+  <div class="header-inner">
+    <a href="index.html" class="logo" aria-label="DESIGNBANK 홈">
+      <b>DESIGN</b><span>B<span class="a">A<svg class="tri" aria-hidden="true"><use href="#tri"/></svg></span>NK</span>
+    </a>
+    <button class="menu-btn" aria-label="메뉴 열기" aria-expanded="false" aria-controls="nav"><span></span><span></span><span></span></button>
+    <nav class="nav" id="nav">
+      <a href="index.html" data-nav="home">홈</a>
+      <a href="about.html" data-nav="about">회사소개</a>
+      <a href="portfolio.html" data-nav="portfolio">포트폴리오</a>
+      <a href="notice.html" data-nav="notice">공지사항</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="page">
+    <div class="hero">
+      <div class="hero-left">
+        <div class="hero-slide" id="heroSlide">
+          <h1>40년 디자인경력<br>명함 전화한통으로<br>제작 해 드립니다</h1>
+          <p>코팅명함 500매 15,000 택배비 포함</p>
+        </div>
+      </div>
+      <div class="hero-right" aria-label="DESIGN BANK">
+        <div class="hero-mark" aria-hidden="true">
+          <span class="l1">DESIGN</span>
+          <span class="l2">B<span class="a">A<svg class="tri" aria-hidden="true"><use href="#tri"/></svg></span>NK</span>
+        </div>
+      </div>
+    </div>
+    <div class="contact">
+      <p class="tel">010-2224-9936<em>ㅣ</em>greencomm@hanmail.net</p>
+      <span class="cta">디자인제작 상담문의</span>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <b>디자인뱅크</b>
+    <address>
+      강원특별자치도 원주시 강변로 525 (평원동)<br>
+      E-mail. greencomm@hanmail.net<br>
+      <span>Tel. 070-8621-9936</span> Mobile. 010-2224-9936
+    </address>
+  </div>
+</footer>
+
+<script src="js/common.js"></script>
+<script>
+  // 주황 영역 폭만큼 오른쪽(검정 판 뒤)에서 시작하도록 설정
+  // 홈 메뉴·로고를 누를 때마다, 그리고 주황 영역을 클릭할 때 다시 재생
+  (function () {
+    var left = document.querySelector('.hero-left');
+    var slide = document.getElementById('heroSlide');
+    if (!left || !slide) return;
+
+    function setDistance() { slide.style.setProperty('--slide', left.clientWidth + 'px'); }
+    function replay() {
+      setDistance();
+      slide.style.animation = 'none';
+      void slide.offsetWidth;
+      slide.style.animation = '';
+    }
+
+    setDistance();
+    window.addEventListener('resize', setDistance);
+    left.addEventListener('click', replay);
+
+    // 홈 메뉴와 로고: 페이지를 새로 불러오지 않고 맨 위로 올린 뒤 애니메이션 재생
+    document.querySelectorAll('a[data-nav="home"], .header .logo').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // 모바일 메뉴가 열려 있으면 닫기
+        var nav = document.getElementById('nav');
+        var btn = document.querySelector('.menu-btn');
+        if (nav && btn && btn.getAttribute('aria-expanded') === 'true') btn.click();
+        replay();
+      });
+    });
+
+    // 뒤로가기로 돌아왔을 때(캐시된 페이지)도 다시 재생
+    window.addEventListener('pageshow', function (e) { if (e.persisted) replay(); });
+  })();
+</script>
+</body>
+</html>

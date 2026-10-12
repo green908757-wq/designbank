@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>40년 디자인경력 명함 제작</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;700&family=Inter:wght@400;800&display=swap" rel="stylesheet">
+<style>
+  :root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg:#FA9555; --fg:#FFFFFF; --sub:#000000; --page:#ffffff; --logo:#222222; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --page:#111111; } }
+  :root[data-theme="dark"] { --page:#111111; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--page); display: flex; align-items: center; justify-content: center;
+         font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+
+  /* 원본 1272 x 568 비율 그대로, 화면 폭에 맞춰 축소 */
+  .card { --u: min(1px, calc(98vw / 1272)); width: calc(1272 * var(--u)); height: calc(568 * var(--u));
+          background: var(--bg); position: relative; overflow: hidden; cursor: pointer; }
+
+  /* 왼쪽 주황 영역: 글씨는 여기서만 보임 (오른쪽 검정 판 뒤는 가려짐) */
+  .stage { position: absolute; left: 0; top: 0; bottom: 0; width: calc(623 * var(--u)); overflow: hidden; }
+  .text { position: absolute; left: calc(62 * var(--u)); top: calc(100 * var(--u)); }
+  .line { display: block; color: var(--fg); font-weight: 700; font-size: calc(50 * var(--u));
+          line-height: calc(70 * var(--u)); margin-bottom: calc(50 * var(--u)); white-space: nowrap; }
+  .line.last { margin-bottom: calc(28 * var(--u)); }
+  .sub { color: var(--sub); font-weight: 500; font-size: calc(27 * var(--u)); margin: 0; white-space: nowrap; }
+
+  /* 검정 판 뒤에서 왼쪽으로 2초간 슬라이딩 */
+  .anim { animation: slideLeft 2s cubic-bezier(.22,.8,.3,1) both; }
+  @keyframes slideLeft { from { transform: translateX(calc(623 * var(--u))); } to { transform: translateX(0); } }
+  @media (prefers-reduced-motion: reduce) { .anim { animation: none; } }
+
+  .logo { position: absolute; left: calc(623 * var(--u)); top: 0; right: 0; bottom: 0; background: var(--logo); z-index: 2; }
+  .logo svg { width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+  <div class="card" id="card" title="클릭하면 다시 재생">
+    <div class="stage">
+      <div class="text anim" id="text">
+        <span class="line">40년 디자인경력</span>
+        <span class="line">명함 전화한통으로</span>
+        <span class="line last">제작 해 드립니다</span>
+        <p class="sub">코팅명함 500매 15,000 택배비 포함</p>
+      </div>
+    </div>
+    <div class="logo" aria-label="DESIGN BANK">
+      <svg viewBox="623 0 649 568" xmlns="http://www.w3.org/2000/svg">
+        <text x="924" y="208" text-anchor="middle" fill="#fff" textLength="472" lengthAdjust="spacingAndGlyphs"
+              font-family="Inter, Arial, Helvetica, sans-serif" font-weight="800" font-size="128">DESIGN</text>
+        <g fill="#fff" font-family="Inter, Arial, Helvetica, sans-serif" font-weight="400" font-size="132">
+          <text x="688" y="450">B</text>
+          <text x="944" y="450">N</text>
+          <text x="1076" y="450">K</text>
+        </g>
+        <polygon points="857,252 800,455 912,455" fill="#FF0000"/>
+      </svg>
+    </div>
+  </div>
+<script>
+  document.getElementById('card').addEventListener('click', () => {
+    const t = document.getElementById('text');
+    t.classList.remove('anim'); void t.offsetWidth; t.classList.add('anim');
+  });
+</script>
+</body>
+</html>
