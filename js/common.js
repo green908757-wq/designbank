@@ -15,6 +15,7 @@ const GALLERIES = {
   ]
 };
 const POSTS = [
+  {id:2,title:"테스트",date:"2026.10.12",body:"너무 편리하게 하시는데요."},
   {id:1,title:"디자인제작문의",date:"2026.06.10",body:"디자인제작문의."}
 ];
 
