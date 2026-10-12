@@ -71,6 +71,12 @@ button,input,textarea,select{font:inherit;color:inherit}
 .side-foot button{background:none;border:1px solid #4a4848;color:#d6d3d3;padding:6px 10px;border-radius:3px;cursor:pointer;font-size:12.5px}
 .side-foot button:hover{border-color:#fff;color:#fff}
 .btn.view{text-decoration:none;color:inherit}
+.dlg{border:0;padding:0;max-width:min(460px,calc(100vw - 32px));width:100%;border-left:6px solid var(--orange);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.dlg::backdrop{background:rgba(33,32,32,.55)}
+.dlg form{display:flex;flex-direction:column;gap:14px;padding:24px 26px}
+.dlg h2{margin:0;font-size:19px}
+.dlg .hint a{color:var(--orange-ink);text-decoration:underline}
+.dlg .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
 
 /* ---------- 버튼 ---------- */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 16px;border:1px solid var(--line);background:#fff;border-radius:3px;cursor:pointer;font-weight:500;white-space:nowrap}
@@ -287,6 +293,27 @@ textarea.list{font-size:14px;line-height:1.75}
 
 <input type="file" id="dirInput" webkitdirectory multiple hidden>
 <input type="file" id="zipInput" accept=".zip,application/zip" hidden>
+<dialog class="dlg" id="ghDlg">
+  <form method="dialog" id="ghDlgForm" autocomplete="off">
+    <h2>사이트에 저장하려면 GitHub 연결이 필요합니다</h2>
+    <p class="hint" style="margin:0">처음 한 번만 하면 됩니다. 다음부터는 바로 저장됩니다.</p>
+    <div class="field">
+      <label for="dRepo">GitHub 저장소</label>
+      <input type="text" id="dRepo" placeholder="아이디/저장소이름" spellcheck="false">
+    </div>
+    <div class="field">
+      <label for="dToken">GitHub 토큰</label>
+      <input type="password" id="dToken" placeholder="github_pat_로 시작하는 값" spellcheck="false">
+      <p class="hint"><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">토큰 만들기</a>에서 이 저장소만 고르고, Contents 권한을 Read and write로 주세요.</p>
+    </div>
+    <label class="chk"><input type="checkbox" id="dRemember" checked> 이 브라우저에서 기억하기</label>
+    <p class="start-err" id="dErr" role="alert" hidden></p>
+    <div class="acts">
+      <button class="btn ghost" type="button" id="dCancel">취소</button>
+      <button class="btn accent" type="submit" id="dGo">연결하고 저장</button>
+    </div>
+  </form>
+</dialog>
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script>
@@ -302,6 +329,8 @@ const PAGE = {
   notice:'notice.html', noticeView:'notice-view.html'
 };
 const JS = 'js/common.js';
+// GitHub 저장소 이름을 여기에 적어 두면 연결 창에 미리 채워집니다. 예: 'myid/designbank'
+const SITE_REPO = '';
 const TABS_RE = /\[\["namecard","([^"]*)"\],\["promo","([^"]*)"\],\["other","([^"]*)"\]\]/;
 
 const T = (k,l,o={}) => Object.assign({k,l},o);
@@ -690,6 +719,7 @@ async function handleFor(path, create){
 async function readFile(path){
   if (S.assets.has(path)) return S.assets.get(path);
   if (S.mode==='gh') return ghRead(path);
+  if (S.mode==='web') return webRead(path);
   if (S.mode==='fs'){ try{ return await (await handleFor(path)).getFile(); }catch(e){ return null; } }
   return S.files.get(path) || null;
 }
@@ -703,6 +733,61 @@ async function exists(path){
 const GH = { repo:'', branch:'', token:'', base:'', tree:new Map(), loaded:new Map(), cache:new Map(), site:'' };
 const GH_KEY = 'designbank-admin-github';
 const encPath = p => p.split('/').map(encodeURIComponent).join('/');
+
+/* ---------- 사이트에서 바로 열기 (dnb1.co.kr/admin.html) ---------- */
+const WEB = new Map();
+const siteURL = p => new URL(encPath(p), location.href).href;
+function webRead(path){
+  if (!WEB.has(path)) WEB.set(path, fetch(siteURL(path), {cache:'no-store'})
+    .then(r=>r.ok ? r.blob().then(b=>new File([b], path.split('/').pop())) : null).catch(()=>null));
+  return WEB.get(path);
+}
+async function webStart(){
+  if (!/^https?:$/.test(location.protocol)) return false;
+  const prev = S.mode; S.mode='web'; S.name=location.hostname;
+  if (!(await webRead('index.html')) || !(await webRead(JS))){ S.mode=prev; WEB.clear(); return false; }
+  await loadSite();
+  return !$('app').hidden;
+}
+/* 처음 저장할 때만 GitHub 연결 창을 띄웁니다 */
+function webToGitHub(){
+  return new Promise(resolve=>{
+    const d=$('ghDlg'), f=$('ghDlgForm'), err=$('dErr');
+    const saved = ghSaved() || {};
+    $('dRepo').value = saved.repo || SITE_REPO || ''; $('dToken').value = '';
+    err.hidden=true;
+    const done = ok => { f.onsubmit=null; $('dCancel').onclick=null; d.close(); resolve(ok); };
+    $('dCancel').onclick = ()=>done(false);
+    d.oncancel = e=>{ e.preventDefault(); done(false); };
+    f.onsubmit = async e=>{
+      e.preventDefault();
+      const repo=parseRepo($('dRepo').value), token=$('dToken').value.trim();
+      if (!repo){ err.textContent='저장소는 아이디/저장소이름 형식으로 적어 주세요.'; err.hidden=false; return; }
+      if (!token){ err.textContent='GitHub 토큰을 붙여 넣어 주세요.'; err.hidden=false; return; }
+      $('dGo').disabled=true; $('dGo').textContent='연결 중…'; err.hidden=true;
+      try{
+        await ghConnect(repo, token);
+        ghRemember(GH.repo, token, $('dRemember').checked);
+        // 화면에 불러온 내용과 GitHub의 내용이 같은지 확인
+        const diff=[];
+        for (const p of Object.keys(S.texts)){
+          const fl = await ghRead(p), t = fl ? await fl.text() : null;
+          if (t!==S.texts[p]) diff.push(p); else GH.loaded.set(p, GH.tree.get(GH.base+p));
+        }
+        if (diff.length){
+          S.mode='web';
+          throw new Error(`연결은 됐지만, 사이트가 최근에 바뀌어 지금 화면과 다른 파일이 있습니다(${diff.join(', ')}). 고친 내용을 메모해 두고 새로고침한 뒤 다시 고쳐 주세요.`);
+        }
+        applyModeUI();
+        done(true);
+      }catch(ex){
+        if (S.mode!=='gh') S.mode='web';
+        err.textContent=ex.message; err.hidden=false;
+      }finally{ $('dGo').disabled=false; $('dGo').textContent='연결하고 저장'; }
+    };
+    d.showModal(); setTimeout(()=>($('dRepo').value?$('dToken'):$('dRepo')).focus(), 30);
+  });
+}
 function ghErr(st, msg){
   if (st===401) return '토큰이 맞지 않거나 기간이 지났습니다. 토큰을 다시 확인해 주세요.';
   if (st===403) return '이 토큰에는 권한이 부족합니다. 토큰의 Contents 권한을 Read and write로 바꿔 주세요.' + (msg?' ('+msg+')':'');
@@ -931,18 +1016,24 @@ async function loadSite(){
   if (S.mode==='gh') for (const p of Object.keys(S.texts)) GH.loaded.set(p, GH.tree.get(GH.base+p));
   M = extract(); B = clone(M);
   $('start').hidden=true; $('app').hidden=false;
-  $('where').innerHTML = S.mode==='gh'
+  applyModeUI();
+  renderNav(); renderMain(); updateDirty();
+  if (missing.length) toast('찾지 못한 파일이 있어 해당 항목은 편집할 수 없습니다: '+missing.join(', '), true);
+}
+function applyModeUI(){
+  $('where').innerHTML = S.mode==='web'
+    ? `<b>${esc(S.name)}</b> 편집 중입니다. 저장하면 사이트에 바로 반영됩니다.`
+    : S.mode==='gh'
     ? `<b>${esc(S.name)}</b> 연결됨. 저장하면 1~2분 뒤 사이트에 반영됩니다.`
     : S.mode==='fs'
     ? `<b>${esc(S.name)}</b> 폴더를 편집 중입니다. 저장하면 폴더의 파일이 바로 바뀝니다.`
     : `<b>${esc(S.name)}</b> 편집 중입니다. 저장하면 수정된 사이트를 ZIP으로 내려받습니다.`;
-  $('save').textContent = S.mode==='gh' ? '사이트에 저장' : S.mode==='fs' ? '저장' : 'ZIP으로 저장';
-  $('sideFoot').hidden = S.mode==='mem';
+  $('save').textContent = (S.mode==='gh'||S.mode==='web') ? '사이트에 저장' : S.mode==='fs' ? '저장' : 'ZIP으로 저장';
+  $('sideFoot').hidden = S.mode==='mem' || S.mode==='web';
   $('backupLbl').hidden = S.mode!=='fs';
   $('ghFoot').hidden = S.mode!=='gh';
-  if (S.mode==='gh' && GH.site){ $('viewSite').href = GH.site; $('viewSite').hidden=false; }
-  renderNav(); renderMain(); updateDirty();
-  if (missing.length) toast('찾지 못한 파일이 있어 해당 항목은 편집할 수 없습니다: '+missing.join(', '), true);
+  const view = S.mode==='web' ? location.origin+'/' : (S.mode==='gh' && GH.site) ? GH.site : '';
+  if (view){ $('viewSite').href = view; $('viewSite').hidden=false; }
 }
 
 /* =========================================================
@@ -1177,6 +1268,7 @@ async function save(){
   const assets=[...S.assets];
   const n=Object.keys(out).length;
   if (!n && !assets.length){ toast('바뀐 내용이 없습니다.'); return; }
+  if (S.mode==='web' && !(await webToGitHub())) return;
   $('save').disabled=true; const label=$('save').textContent; $('save').textContent='저장 중…';
   try{
     if (S.mode==='gh'){
@@ -1233,6 +1325,12 @@ window.addEventListener('beforeunload', e=>{ if (M && (J(M)!==J(B) || S.assets.s
   if (saved && saved.repo && saved.token){
     $('ghRepo').value = saved.repo;
     ghStart(saved.repo, saved.token, !!localStorage.getItem(GH_KEY));
+  } else if (/^https?:$/.test(location.protocol)){
+    // 사이트에서 열었으면 연결 화면 없이 바로 편집기로
+    $('connecting').textContent='사이트 내용을 불러오는 중입니다…'; $('connecting').hidden=false; $('ghForm').hidden=true;
+    const ok = await webStart();
+    $('connecting').hidden=true; $('connecting').textContent='GitHub에 연결하는 중입니다…';
+    if (!ok){ $('ghForm').hidden=false; startError(''); if (SITE_REPO) $('ghRepo').value=SITE_REPO; }
   } else {
     const h = location.hostname.match(/^([^.]+)\.github\.io$/);
     if (h){ const seg = location.pathname.split('/').filter(Boolean)[0]; $('ghRepo').value = h[1]+'/'+(seg && !/\.html$/.test(seg) ? seg : h[0]); }
