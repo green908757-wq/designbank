@@ -721,6 +721,12 @@ function patch(orig, base, next){
   return out.join('\n');
 }
 
+/* 캐시 방지: js/common.js, css/style.css 주소 뒤에 ?v=날짜시간 을 붙여
+   파일이 바뀌면 방문자 브라우저가 옛 파일 대신 새 파일을 받도록 합니다 */
+const ASSET_RE = /((?:src|href)=")(js\/common\.js|css\/style\.css)(\?v=[^"]*)?"/g;
+const verNow = () => { const d=new Date(), p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}`; };
+const stampVersions = (text, v) => text.replace(ASSET_RE, (m, a, path) => `${a}${path}?v=${v}"`);
+
 /* 저장할 파일 계산: 바뀐 파일만 */
 function outputs(){
   const out={};
@@ -731,6 +737,15 @@ function outputs(){
     if (a!==b) out[f]=patch(t, b, a);
   }
   if (S.texts[JS]!=null){ const a=applyJS(S.texts[JS], M, B); if (a!==S.texts[JS]) out[JS]=a; }
+  // common.js가 바뀌면 모든 페이지의 버전 번호도 새로 바꿈
+  if (out[JS]!=null){
+    const v = verNow();
+    for (const f of Object.values(PAGE)){
+      if (S.texts[f]==null) continue;
+      const t = stampVersions(out[f]!=null ? out[f] : S.texts[f], v);
+      if (t!==S.texts[f]) out[f]=t;
+    }
+  }
   return out;
 }
 
@@ -1114,7 +1129,12 @@ async function downloadAll(){
   let changed;
   try{ changed = outputs(); }catch(e){ toast('파일을 만드는 중 문제가 생겼습니다: '+e.message, true); return; }
   const files = [];
-  for (const f of [...Object.values(PAGE), JS]) if (S.texts[f]!=null) files.push([f, changed[f]!=null ? changed[f] : S.texts[f]]);
+  const v = verNow();
+  for (const f of [...Object.values(PAGE), JS]){
+    if (S.texts[f]==null) continue;
+    const t = changed[f]!=null ? changed[f] : S.texts[f];
+    files.push([f, f===JS ? t : stampVersions(t, v)]);   // 전체를 올릴 때는 항상 새 버전 번호
+  }
   const assets = [...S.assets];
   const d = new Date(), pad = n=>String(n).padStart(2,'0');
   const name = `${(S.mode==='web'?location.hostname:S.name)||'site'}-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.zip`;
