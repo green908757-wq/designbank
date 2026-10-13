@@ -153,12 +153,12 @@ main{min-height:60vh}
   .boxes{margin:0 auto}
 }
 @media (max-width:900px){
-  .header-inner{height:72px}
-  .menu-btn{display:block}
-  .nav{position:absolute;top:100%;left:0;right:0;background:#fff;flex-direction:column;gap:0;border-bottom:2px solid #d9d9d9;display:none}
-  .menu-open .nav{display:flex}
-  .nav a{padding:16px var(--pad);border-bottom:1px solid #eee;font-size:18px}
-  .nav a[aria-current="page"]{color:var(--orange);border-bottom-color:#eee}
+  /* 휴대폰: 로고 아래 한 줄로 메뉴 4개를 항상 보여 줌 (햄버거 버튼 없음) */
+  .header-inner{height:auto;flex-direction:column;align-items:stretch;gap:10px;padding-top:14px;padding-bottom:0}
+  .menu-btn{display:none}
+  .nav{display:flex;justify-content:space-between;gap:8px}
+  .nav a{font-size:17px;letter-spacing:.02em;padding:6px 0 10px;border-bottom-width:3px;white-space:nowrap}
+  .nav a[aria-current="page"]{color:var(--orange)}
   .hero{grid-template-columns:1fr;min-height:0;margin-top:32px}
   .hero-left{padding:48px 32px}
   .hero-left p{line-height:1.6;margin-top:16px}
@@ -176,6 +176,7 @@ main{min-height:60vh}
   .footer-inner{padding:48px var(--pad)}
 }
 @media (max-width:600px){
+  .nav a{font-size:16px}
   .contact .tel a,.contact .tel em{display:block}
   .contact .tel em{display:none}
   .contact .cta{margin-bottom:64px}
@@ -192,5 +193,8 @@ main{min-height:60vh}
   .board{font-size:16px}
   .board td.date,.board th.date{font-size:14px}
   .detail{padding:24px 20px;min-height:360px}
+}
+@media (max-width:360px){
+  .nav a{font-size:15px;letter-spacing:0}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
